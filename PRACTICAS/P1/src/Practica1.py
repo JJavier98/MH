@@ -8,7 +8,13 @@ Estudiante: JJavier Alonso Ramos
 from scipy.io import arff
 import numpy as np
 import pandas as pd
-import sys 								# Leer parámetros de entrada
+import sys # Leer parámetros de entrada
+from scipy.spatial import cKDTree
+from sklearn.neighbors import KDTree
+
+# Funciones codificación de etiquetas
+byte2string = lambda x: x.decode('utf-8')
+string2int = lambda x: int(x)
 
 # Funcion para leer archivos arff
 def read_arff(path):
@@ -21,8 +27,20 @@ def read_arff(path):
 
 	return data, meta
 
+def get_tags_class(tags):
+	num_element_in_class = {}
+	tags_class = []
+	for w in tags:
+		if w in num_element_in_class:
+			num_element_in_class[w] = num_element_in_class[w]+1
+		else:
+			num_element_in_class[w] = 1
+			tags_class.append(w)
+
+	return num_element_in_class, tags_class
+
 # Función para dividir el conjunto de datos en 5 subconjuntos de mismas proporciones
-def _5_fold_cross_validation(data):
+#def _5_fold_cross_validation(data):
 
 
 # Función auxiliar para calcular distancias entre dos elementos
@@ -37,30 +55,31 @@ def euclidean_distance(x_i, x_j):
 #def local_search(data, tags):
 
 # Algoritmo Greedy
-def relief(data, tags):
-	# data no contendrá la columna de etiquetas
+def relief(data, tags, tags_class):
 	num_data = data.shape[0]
 	num_attributes = data.shape[1]
 	w = np.zeros(num_attributes)
-	closest_enemy = np.zeros_like(w)
-	enemy_distance = 999
-	closest_friend = np.zeros_like(w)
-	friend_distance = 999
 
 	for i in range(num_data):
-		for j in range(num_data):
+		allies  = data[ tags == tags[i] ]
+		enemies	= data[ tags != tags[i] ]
+		#print(data[i].shape)
+		row = enemies.shape[0]
+		col = enemies.shape[1]
 
-			if i != j:
-				current_distance = euclidean_distance(data[i], data[j])
+		enemies = np.append(data[i],enemies)
+		enemies = np.reshape(enemies,(row+1,col))
 
-				if tags[i] == tags[j] and current_distance < friend_distance:
-					friend_distance = current_distance
-					closest_friend = data[j]
-				elif tags[i] != tags[j] and current_distance < enemy_distance:
-					enemy_distance = current_distance
-					closest_enemy = data[j]
 
-		w = w + abs(data[i] - closest_enemy) - abs(data[i] - closest_friend)
+		ally_tree	= cKDTree(allies)
+		enemy_tree	= cKDTree(enemies)
+
+		nearest_dist_ally, nearest_ind_ally = ally_tree.query(allies, k=2)
+		nearest_dist_enemy, nearest_ind_enemy = enemy_tree.query(enemies, k=2)
+
+		print(nearest_ind_enemy)
+
+		w = w + abs(data[i] - data[nearest_ind_enemy[0,1]]) - abs(data[i] - data[nearest_ind_ally[i,1]])
 
 	w_max = np.max(w)
 
@@ -70,8 +89,15 @@ def relief(data, tags):
 		else:
 			w[i] = w[i] / w_max
 
+	print(w)
+
 	return w
 
+
+
+###########################################################################################
+#################################### MAIN #################################################
+###########################################################################################
 
 if len(sys.argv) != 2: 							# Indicar como segundo parámetro el nombre del fichero con el que se va a trabajar
 	archivo = input('Indique path/archivo.arff que desea abrir: \n')
@@ -79,16 +105,22 @@ else:
 	archivo = sys.argv[1] 						# Leemos el fichero y lo cargamos en 'file'
 
 data, meta = read_arff(archivo)
+print(data)
 
+tags = []
+for i in data:
+	tags.append(byte2string(i[-1]))
+tags = np.asarray(tags)
 
-print(data.shape)
-print(meta)
+data = data[:,0:-1]
 
-tags = data[:,data.shape[1]-1]
-data = data[:,0:data.shape[1]-1]
+num_element_in_class, tags_class = get_tags_class(tags)
 
-print(data.shape)
-print(tags.shape)
-w = relief(data,tags)
+print(tags)
 
-print(w)
+print(num_element_in_class)
+
+print(tags_class)
+
+print(data[tags == tags_class[0]])
+w = relief(data, tags, tags_class)
