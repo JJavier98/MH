@@ -13,7 +13,8 @@ from scipy.spatial import cKDTree
 from sklearn.neighbors import KDTree
 from sklearn.model_selection import StratifiedKFold
 from time import time
-import random
+
+np.random.seed(1)
 
 ###################################################
 ### Funciones para la codificación de etiquetas ###
@@ -63,6 +64,7 @@ def _5_fold_cross_validation(data, tags, tags_class, num_element_in_class):
 
 	for i in range( len(tags_class) ):
 		# subconjuntos dependiendo de la etiqueta
+		np.random.shuffle(data)
 		sub_parts.append(data[ tags == tags_class[i] ])
 		# 20% de elementos de cada subconjunto
 		proportionalities.append( int(0.2*num_element_in_class[tags_class[i]]) )
@@ -82,36 +84,53 @@ def _5_fold_cross_validation(data, tags, tags_class, num_element_in_class):
 		conjunto_3 = np.r_[ conjunto_3, sub_parts[i][proportionalities[i]*2:proportionalities[i]*3] ]
 		conjunto_4 = np.r_[ conjunto_4, sub_parts[i][proportionalities[i]*3:proportionalities[i]*4] ]
 		conjunto_5 = np.r_[ conjunto_5, sub_parts[i][proportionalities[i]*4:] ]
-
+	"""
 	np.random.shuffle(conjunto_1)
 	np.random.shuffle(conjunto_2)
 	np.random.shuffle(conjunto_3)
 	np.random.shuffle(conjunto_4)
 	np.random.shuffle(conjunto_5)
+	"""
 
 	conjuntos = np.array([conjunto_1, conjunto_2, conjunto_3, conjunto_4, conjunto_5])
 
 	return conjuntos
 
 ##################
-### k-NN ; k=1 ###
+### k-NN ; k=2 ###
 ##################
-def k_NN(data, tags, w):
-	w_prim = w
+def k_NN_leave_one_out(data, tags, w):
+	w_prim = np.copy( w )
 	w_prim[w < 0.2] = 0.0
 	eliminated = w[w < 0.2].shape[0]
 	right = 0
 
-	data_mod = data*w_prim # Puedes hacer (data * w)[:, w > 0.2]
-	tree = cKDTree(data_mod)
-	nearest_dist, nearest_ind = tree.query(data_mod, k=2)
+	data_mod = (data*w_prim)[:, w > 0.2] # Puedes hacer (data * w)[:, w > 0.2]
+	tree = KDTree(data_mod)
+	nearest_ind = tree.query(data_mod, k=2, return_distance=False)[:,1]
 
-	for i in range(data.shape[0]):
-		if tags[i] == tags[ nearest_ind[i,1] ]:
-			right += 1
+	hit_rate = np.mean( tags[nearest_ind] == tags )
+	reduction_rate = eliminated/w.shape[0]
 
-	hit_rate = 100*right/data.shape[0]
-	reduction_rate = 100*eliminated/w.shape[0]
+	f = F(hit_rate, reduction_rate, 0.5)
+
+	return f
+
+##################
+### k-NN ; k=1 ###
+##################
+def k_NN(data, tags, w):
+	w_prim = np.copy( w )
+	w_prim[w < 0.2] = 0.0
+	eliminated = w[w < 0.2].shape[0]
+	right = 0
+
+	data_mod = (data*w_prim)[:, w > 0.2] # Puedes hacer (data * w)[:, w > 0.2]
+	tree = KDTree(data_mod)
+	nearest_ind = tree.query(data_mod, k=1, return_distance=False)
+
+	hit_rate = np.mean( tags[nearest_ind] == tags )
+	reduction_rate = eliminated/w.shape[0]
 
 	f = F(hit_rate, reduction_rate, 0.5)
 
@@ -125,27 +144,27 @@ def relief(data, tags, tags_class):
 	### greedy con bucles ###
 	#########################
 	
-	num_data = data.shape[0]
-	num_attributes = data.shape[1]
-	w = np.zeros(num_attributes)
-	closest_enemy = np.zeros_like(w)
+	num_data = np.copy( data.shape[0] )
+	num_attributes = np.copy( data.shape[1] )
+	w = np.copy( np.zeros(num_attributes) )
+	closest_enemy = np.copy( np.zeros_like(w) )
 	enemy_distance = 999
-	closest_friend = np.zeros_like(w)
+	closest_friend = np.copy( np.zeros_like(w) )
 	friend_distance = 999
 
 	for i in range(num_data):
 		for j in range(num_data):
 			if i != j:
-				current_distance = np.linalg.norm(data[i] - data[j])
+				current_distance = np.copy( np.linalg.norm(data[i] - data[j]) )
 
 				if tags[i] == tags[j] and current_distance < friend_distance:
-					friend_distance = current_distance
-					closest_friend = data[j]
+					friend_distance = np.copy( current_distance )
+					closest_friend = np.copy( data[j] )
 				elif tags[i] != tags[j] and current_distance < enemy_distance:
-					enemy_distance = current_distance
-					closest_enemy = data[j]
+					enemy_distance = np.copy( current_distance )
+					closest_enemy = np.copy( data[j] )
 
-		w = w + np.abs(data[i] - closest_enemy) - np.abs(data[i] - closest_friend)
+		w = np.copy( w + np.abs(data[i] - closest_enemy) - np.abs(data[i] - closest_friend) )
 
 	"""
 	#########################
@@ -186,13 +205,13 @@ def relief(data, tags, tags_class):
 		
 		w = w + abs(data[i] - data[nearest_ind_enemy[0,1]]) - abs(data[i] - data[nearest_ind_ally[indice,1]])
 """
-	w_max = np.max(w)
+	w_max = np.copy( np.max(w) )
 
 	for i in range(w.shape[0]):
 		if w[i] < 0.0:
 			w[i] = 0.0
 		else:
-			w[i] = w[i] / w_max
+			w[i] = np.copy( w[i] / w_max )
 
 	return w
 
@@ -212,9 +231,9 @@ def local_search(data, tags):
 		for i in range(w.shape[0]):
 			n_eval += 1
 			prev = w[i]
-			class_prev = k_NN(data, tags, w)
+			class_prev = k_NN_leave_one_out(data, tags, w)
 			w[i] = np.clip(w[i] + np.random.normal(mean, variance), 0, 1)
-			class_mod = k_NN(data, tags, w)
+			class_mod = k_NN_leave_one_out(data, tags, w)
 
 			if(class_mod > class_prev):
 				n_neighbors = 0
@@ -269,20 +288,13 @@ for train_index, test_index in skf.split(_data, _class):
     print('Muestra: ' + str(it))
     it += 1
 
-    """
-    w = relief(x_train, y_train, tags_class)
-    f = k_NN(x_train, y_train, w)
-    mean_train_greedy = mean_train_greedy + f
-    """
-    w = relief(x_train, y_train, tags_class)
-    f = k_NN(x_test, y_test, w)
+    w_g = relief(x_train, y_train, tags_class)
+    f = k_NN(x_test, y_test, w_g)
     mean_test_greedy = mean_test_greedy + f
 
-    w = local_search(x_train, y_train)
-    f = k_NN(x_test, y_test, w)
+    w_ls = local_search(x_train, y_train)
+    f = k_NN(x_test, y_test, w_ls)
     mean_test_LS = mean_test_LS + f
-
-
 
 """
 for i in range(0,5):
@@ -304,11 +316,11 @@ for i in range(0,5):
 	mean_test_greedy = mean_test_greedy + f
 """
 print('TRAIN')
-print(mean_train_greedy/5)
+print(100*mean_train_greedy/5)
 print('\n\nTEST')
-print(mean_test_greedy/5)
+print(100*mean_test_greedy/5)
 
 print('TRAIN')
-print(mean_train_LS/5)
+print(100*mean_train_LS/5)
 print('\n\nTEST')
-print(mean_test_LS/5)
+print(100*mean_test_LS/5)
