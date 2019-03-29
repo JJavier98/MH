@@ -227,15 +227,16 @@ for i in range(0,5):
 
 	f, hr, rr = k_NN(data_train[:,0:-1], data_train[:,-1], w)
 
-	print('')
-	print(f)
-	print(hr)
-	print(rr)
+	print('TRAIN_' + str(i))
+	print('f = ' + str(f))
+	print('hit_rate = ' + str(hr))
+	print('reduction_rate = ' + str(rr))
 	print('')
 
 	f, hr, rr = k_NN(data_test[:,0:-1], data_test[:,-1], w)
 
-	print(f)
-	print(hr)
-	print(rr)
-	print('\n\n')
+	print('TEST_' + str(i))
+	print('f = ' + str(f))
+	print('hit_rate = ' + str(hr))
+	print('reduction_rate = ' + str(rr))
+	print('\n')
