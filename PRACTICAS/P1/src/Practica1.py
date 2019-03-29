@@ -11,7 +11,9 @@ import pandas as pd
 import sys # Leer parámetros de entrada
 from scipy.spatial import cKDTree
 from sklearn.neighbors import KDTree
+from sklearn.model_selection import StratifiedKFold
 from time import time
+import random
 
 ###################################################
 ### Funciones para la codificación de etiquetas ###
@@ -32,8 +34,8 @@ def read_arff(path):
 
 	df_data = pd.DataFrame(file)	# Transformamos file (los datos) en un data-frame
 	data = df_data.values			# Transformamos este data-frame en una matriz para que sea más manejable
-	df_meta = pd.DataFrame(meta)	# Transformamos meta en un data-frame
-	meta = df_meta.values			# Transformamos este data-frame en una matriz para que sea más manejable
+	#df_meta = pd.DataFrame(meta)	# Transformamos meta en un data-frame
+	#meta = df_meta.values			# Transformamos este data-frame en una matriz para que sea más manejable
 
 	return data, meta
 
@@ -56,17 +58,36 @@ def get_tags_class(tags):
 ### Función para dividir el conjunto de datos en 5 subconjuntos de mismas proporciones ###
 ##########################################################################################
 def _5_fold_cross_validation(data, tags, tags_class, num_element_in_class):
-	sub1 = data[tags == tags[0]]
-	sub2 = data[tags != tags[0]]
+	sub_parts = []
+	proportionalities = []
 
-	porc_atrb_1 = int(0.2*num_element_in_class[tags_class[0]])
-	porc_atrb_2 = int(0.2*num_element_in_class[tags_class[1]])
+	for i in range( len(tags_class) ):
+		# subconjuntos dependiendo de la etiqueta
+		sub_parts.append(data[ tags == tags_class[i] ])
+		# 20% de elementos de cada subconjunto
+		proportionalities.append( int(0.2*num_element_in_class[tags_class[i]]) )
 
-	conjunto_1 = np.r_[ sub1[0:porc_atrb_1], sub2[0:porc_atrb_2] ]
-	conjunto_2 = np.r_[ sub1[porc_atrb_1:porc_atrb_1*2], sub2[porc_atrb_2:porc_atrb_2*2] ]
-	conjunto_3 = np.r_[ sub1[porc_atrb_1*2:porc_atrb_1*3], sub2[porc_atrb_2*2:porc_atrb_2*3] ]
-	conjunto_4 = np.r_[ sub1[porc_atrb_1*3:porc_atrb_1*4], sub2[porc_atrb_2*3:porc_atrb_2*4] ]
-	conjunto_5 = np.r_[ sub1[porc_atrb_1*4:], sub2[porc_atrb_2*4:] ]
+	sub_parts = np.array(sub_parts)
+	proportionalities = np.array(proportionalities)
+
+	conjunto_1 = sub_parts[0][0:proportionalities[0]]
+	conjunto_2 = sub_parts[0][proportionalities[0]:proportionalities[0]*2]
+	conjunto_3 = sub_parts[0][proportionalities[0]*2:proportionalities[0]*3]
+	conjunto_4 = sub_parts[0][proportionalities[0]*3:proportionalities[0]*4]
+	conjunto_5 = sub_parts[0][proportionalities[0]*4:]
+
+	for i in range(1,sub_parts.shape[0]):
+		conjunto_1 = np.r_[ conjunto_1, sub_parts[i][0:proportionalities[i]] ]
+		conjunto_2 = np.r_[ conjunto_2, sub_parts[i][proportionalities[i]:proportionalities[i]*2] ]
+		conjunto_3 = np.r_[ conjunto_3, sub_parts[i][proportionalities[i]*2:proportionalities[i]*3] ]
+		conjunto_4 = np.r_[ conjunto_4, sub_parts[i][proportionalities[i]*3:proportionalities[i]*4] ]
+		conjunto_5 = np.r_[ conjunto_5, sub_parts[i][proportionalities[i]*4:] ]
+
+	np.random.shuffle(conjunto_1)
+	np.random.shuffle(conjunto_2)
+	np.random.shuffle(conjunto_3)
+	np.random.shuffle(conjunto_4)
+	np.random.shuffle(conjunto_5)
 
 	conjuntos = np.array([conjunto_1, conjunto_2, conjunto_3, conjunto_4, conjunto_5])
 
@@ -76,30 +97,25 @@ def _5_fold_cross_validation(data, tags, tags_class, num_element_in_class):
 ### k-NN ; k=1 ###
 ##################
 def k_NN(data, tags, w):
-	eliminated = 0
+	w_prim = w
+	w_prim[w < 0.2] = 0.0
+	eliminated = w[w < 0.2].shape[0]
 	right = 0
 
-	for i in range(w.shape[0]-1, -1, -1):
-		if w[i] == 0.0:
-			data = np.delete(data, i, 1)
-			w 	 = np.delete(w, i)
-			eliminated = eliminated +1
-
-	data_mod = data*w
+	data_mod = data*w_prim # Puedes hacer (data * w)[:, w > 0.2]
 	tree = cKDTree(data_mod)
 	nearest_dist, nearest_ind = tree.query(data_mod, k=2)
 
 	for i in range(data.shape[0]):
-		calculated_tag = tags[ nearest_ind[i,1] ]
-		if tags[i] == calculated_tag:
-			right = right+1
+		if tags[i] == tags[ nearest_ind[i,1] ]:
+			right += 1
 
 	hit_rate = 100*right/data.shape[0]
-	reduction_rate = 100*eliminated/data.shape[0]
+	reduction_rate = 100*eliminated/w.shape[0]
 
 	f = F(hit_rate, reduction_rate, 0.5)
 
-	return f, hit_rate, reduction_rate
+	return f
 
 ########################
 ### Algoritmo Greedy ###
@@ -108,7 +124,7 @@ def relief(data, tags, tags_class):
 	#########################
 	### greedy con bucles ###
 	#########################
-
+	
 	num_data = data.shape[0]
 	num_attributes = data.shape[1]
 	w = np.zeros(num_attributes)
@@ -119,7 +135,6 @@ def relief(data, tags, tags_class):
 
 	for i in range(num_data):
 		for j in range(num_data):
-
 			if i != j:
 				current_distance = np.linalg.norm(data[i] - data[j])
 
@@ -130,7 +145,7 @@ def relief(data, tags, tags_class):
 					enemy_distance = current_distance
 					closest_enemy = data[j]
 
-		w = w + abs(data[i] - closest_enemy) - abs(data[i] - closest_friend)
+		w = w + np.abs(data[i] - closest_enemy) - np.abs(data[i] - closest_friend)
 
 	"""
 	#########################
@@ -141,7 +156,7 @@ def relief(data, tags, tags_class):
 	num_attributes = data.shape[1]
 	w = np.zeros(num_attributes)
 	equipo1 = tags[0]
-	iteraciones = [0,0]
+	iteraciones = np.zeros_like( len(tags_class) )
 
 	for i in range(num_data):
 
@@ -164,20 +179,13 @@ def relief(data, tags, tags_class):
 
 
 		indice = 0
-		if tags[i] == equipo1:
-			indice = iteraciones[0]
-		else:
-			indice = iteraciones[1]
+		for j in range( len(tags_class) ):
+			if tags[i] == tags_class[j]:
+				indice = iteraciones[j]
+				iteraciones[j] = iteraciones[j]+1
 		
-
 		w = w + abs(data[i] - data[nearest_ind_enemy[0,1]]) - abs(data[i] - data[nearest_ind_ally[indice,1]])
-
-
-		if tags[i] == equipo1:
-			iteraciones[0] = iteraciones[0]+1
-		else:
-			iteraciones[1] = iteraciones[1]+1
-	"""		
+"""
 	w_max = np.max(w)
 
 	for i in range(w.shape[0]):
@@ -185,6 +193,35 @@ def relief(data, tags, tags_class):
 			w[i] = 0.0
 		else:
 			w[i] = w[i] / w_max
+
+	return w
+
+###################
+### Local Seach ###
+###################
+def local_search(data, tags):
+	w = np.random.uniform(0.0,1.0,data.shape[1])
+	max_eval = 15000
+	max_neighbors = 20*data.shape[1]
+	n_eval = 0
+	n_neighbors = 0
+	variance = 0.3
+	mean = 0.0
+
+	while n_eval < max_eval and n_neighbors < max_neighbors:
+		for i in range(w.shape[0]):
+			n_eval += 1
+			prev = w[i]
+			class_prev = k_NN(data, tags, w)
+			w[i] = np.clip(w[i] + np.random.normal(mean, variance), 0, 1)
+			class_mod = k_NN(data, tags, w)
+
+			if(class_mod > class_prev):
+				n_neighbors = 0
+				break
+			else:
+				w[i] = prev
+				n_neighbors += 1
 
 	return w
 
@@ -212,9 +249,42 @@ tags = np.asarray(tags)
 # OBTENEMOS CUANTOS CLASES  DISTINTAS DE ETIQUETAS HAY Y CUANTOS ELEMENTOS DE CADA UNA
 num_element_in_class, tags_class = get_tags_class(tags)
 
+
 # SEPARAMOS LOS DATOS EN 5 CONJUNTOS MANTENIENDO LA PROPORCION DE ETIQUETAS IGUAL QUE EN EL CONJUNTO ORIGINAL
 conjuntos = _5_fold_cross_validation(data, tags, tags_class, num_element_in_class)
 
+mean_train_greedy = 0.0
+mean_test_greedy = 0.0
+mean_train_LS = 0.0
+mean_test_LS = 0.0
+
+skf = StratifiedKFold(n_splits=5, random_state=1, shuffle=True)
+_data = data[:,0:-1]
+_class = tags
+it = 0
+for train_index, test_index in skf.split(_data, _class):
+    x_train, x_test = _data[train_index], _data[test_index]
+    y_train, y_test = _class[train_index], _class[test_index]
+
+    print('Muestra: ' + str(it))
+    it += 1
+
+    """
+    w = relief(x_train, y_train, tags_class)
+    f = k_NN(x_train, y_train, w)
+    mean_train_greedy = mean_train_greedy + f
+    """
+    w = relief(x_train, y_train, tags_class)
+    f = k_NN(x_test, y_test, w)
+    mean_test_greedy = mean_test_greedy + f
+
+    w = local_search(x_train, y_train)
+    f = k_NN(x_test, y_test, w)
+    mean_test_LS = mean_test_LS + f
+
+
+
+"""
 for i in range(0,5):
 
 	data_train = np.r_[conjuntos[(i+1)%5], conjuntos[(i+2)%5], conjuntos[(i+3)%5], conjuntos[(i+4)%5]]
@@ -225,18 +295,20 @@ for i in range(0,5):
 	time_end = time()
 	#print(time_end - time_ini)
 
-	f, hr, rr = k_NN(data_train[:,0:-1], data_train[:,-1], w)
+	f = k_NN(data_train[:,0:-1], data_train[:,-1], w)
 
-	print('TRAIN_' + str(i))
-	print('f = ' + str(f))
-	print('hit_rate = ' + str(hr))
-	print('reduction_rate = ' + str(rr))
-	print('')
+	mean_train_greedy = mean_train_greedy + f
 
-	f, hr, rr = k_NN(data_test[:,0:-1], data_test[:,-1], w)
+	f = k_NN(data_test[:,0:-1], data_test[:,-1], w)
 
-	print('TEST_' + str(i))
-	print('f = ' + str(f))
-	print('hit_rate = ' + str(hr))
-	print('reduction_rate = ' + str(rr))
-	print('\n')
+	mean_test_greedy = mean_test_greedy + f
+"""
+print('TRAIN')
+print(mean_train_greedy/5)
+print('\n\nTEST')
+print(mean_test_greedy/5)
+
+print('TRAIN')
+print(mean_train_LS/5)
+print('\n\nTEST')
+print(mean_test_LS/5)
