@@ -9,12 +9,11 @@ from scipy.io import arff
 import numpy as np
 import pandas as pd
 import sys # Leer parámetros de entrada
-from scipy.spatial import cKDTree
 from sklearn.neighbors import KDTree
 from sklearn.model_selection import StratifiedKFold
 from time import time
-from sklearn.preprocessing import normalize
 from sklearn.preprocessing import MinMaxScaler
+from prettytable import PrettyTable
 
 np.random.seed(1)
 
@@ -23,11 +22,6 @@ np.random.seed(1)
 ###################################################
 byte2string = lambda x: x.decode('utf-8')
 string2int = lambda x: int(x)
-
-###########################
-### Función a maximizar ###
-###########################
-F = lambda hr, rr, alpha: alpha*hr + (1-alpha)*rr 
 
 #######################################
 ### Función para leer archivos arff ###
@@ -38,10 +32,22 @@ def read_arff(name):
 
 	df_data = pd.DataFrame(file)	# Transformamos file (los datos) en un data-frame
 	data = df_data.values			# Transformamos este data-frame en una matriz para que sea más manejable
-	#df_meta = pd.DataFrame(meta)	# Transformamos meta en un data-frame
-	#meta = df_meta.values			# Transformamos este data-frame en una matriz para que sea más manejable
 
 	return data, meta
+
+##############################################################################
+### Devuelve las etiquetas (clases) de los elementos del conjunto de datos ###
+##############################################################################
+def get_tags(data):
+	tags = []
+	for _data in data:
+		tags.append(byte2string(_data[-1]))
+	tags = np.asarray(tags)
+
+	return tags 
+
+def get_only_data(data):
+	return (data[:,0:-1]).astype(float)
 
 ###########################################
 ### k-NN ; leave-one-out when necessary ###
@@ -71,7 +77,26 @@ def k_NN(data_training, tags_training, w, data_test = None, tags_test = None, is
 
 	reduction_rate = eliminated/w.shape[0]
 
-	f = F(hit_rate, reduction_rate, 0.5)
+	f = (hit_rate + reduction_rate)* 0.5
+
+	return f, hit_rate, reduction_rate
+
+############
+### 1-NN ###
+############
+def _1_NN(data_training, tags_training, data_test, tags_test):
+	hit = 0
+
+	tree = KDTree(data_training)
+	nearest_ind = tree.query(data_test, k=1, return_distance=False)
+	for i in range(nearest_ind.shape[0]):
+		if tags_training[nearest_ind[i]] == tags_test[i]:
+			hit += 1
+
+	hit_rate = hit/data_test.shape[0]
+	reduction_rate = 0.0
+
+	f = (hit_rate + reduction_rate)* 0.5
 
 	return f, hit_rate, reduction_rate
 
@@ -80,7 +105,7 @@ def k_NN(data_training, tags_training, w, data_test = None, tags_test = None, is
 ########################
 def relief(data, tags):
 ####################################### BUCLES ####################################################
-	
+	"""
 	w = np.zeros(data.shape[1])
 	closest_enemy_id = -4
 	closest_friend_id = -4
@@ -100,9 +125,9 @@ def relief(data, tags):
 					closest_enemy_id = j
 
 		w = w + np.abs(data[i] - data[closest_enemy_id]) - np.abs(data[i] - data[closest_friend_id])
-	
-######################################### KDTree ##################################################
 	"""
+######################################### KDTree ##################################################
+	
 	w = np.zeros(data.shape[1])
 	closest_enemy_id = -4
 	closest_friend_id = -4
@@ -124,7 +149,7 @@ def relief(data, tags):
 				break
 		ally_found = enemy_found = False
 		w = w + np.abs(data[i] - data[closest_enemy_id]) - np.abs(data[i] - data[closest_friend_id])
-	"""
+	
 ###########################################################################################
 
 	w_max = np.max(w)
@@ -166,69 +191,94 @@ def local_search(data, tags):
 ###··································### MAIN ###·······································###
 ###########################################################################################
 
-# NOMBRE ARCHIVO
-if len(sys.argv) != 2:
-	# Indicar como segundo parámetro el nombre del fichero con el que se va a trabajar
-	archivo = input('Indique path/archivo.arff que desea abrir: \n')
-else:
-	# Leemos el fichero y lo cargamos en 'archivo'
-	archivo = sys.argv[1]
+archivos = ['colposcopy', 'texture', 'ionosphere']
+for archivo in archivos:
+	data, meta = read_arff(archivo)
+	tags = get_tags(data)
+	_data = get_only_data(data)
 
-# ABRIR ARCHIVO
-data, meta = read_arff(archivo)
+	scaler = MinMaxScaler()
+	scaler.fit(_data)
+	_data = scaler.transform(_data)
 
-# OBTENER LAS ETIQUETAS
-tags = []
-for i in data:
-	tags.append(byte2string(i[-1]))
-tags = np.asarray(tags)
+	partition = 0
+	mean_test_greedy_hr = 0.0
+	mean_test_greedy_rr = 0.0
+	mean_test_greedy_f = 0.0
+	mean_test_greedy_t = 0.0
+	mean_test_LS_hr = 0.0
+	mean_test_LS_rr = 0.0
+	mean_test_LS_f = 0.0
+	mean_test_LS_t = 0.0
+	mean_test_1nn_hr = 0.0
+	mean_test_1nn_rr = 0.0
+	mean_test_1nn_f = 0.0
 
+	table_greedy = PrettyTable(['Partición', '%_clas', '%_red', 'Agr.', 'T'])
+	table_ls = PrettyTable(['Partición', '%_clas', '%_red', 'Agr.', 'T'])
+	table_1nn = PrettyTable(['Partición', '%_clas', '%_red', 'Agr.', 'T'])
+	mean_table = PrettyTable(['Algorithm', '%_clas', '%_red', 'Agr.'])
 
-_data = (data[:,0:-1]).astype(float)
-_class = tags
-it = 0
-mean_test_greedy_hr = 0.0
-mean_test_LS_hr = 0.0
-mean_test_greedy_rr = 0.0
-mean_test_LS_rr = 0.0
-mean_test_greedy_f = 0.0
-mean_test_LS_f = 0.0
+	skf = StratifiedKFold(n_splits=5, random_state=1, shuffle=True)
+	for train_index, test_index in skf.split(_data, tags):
+		x_train, x_test = _data[train_index], _data[test_index]
+		y_train, y_test = tags[train_index], tags[test_index]
+		partition += 1
 
-scaler = MinMaxScaler()
-scaler.fit(_data)
-_data = scaler.transform(_data)
+		print('\n\n Partición ', partition)
 
-skf = StratifiedKFold(n_splits=5, random_state=3, shuffle=True)
+		###·· GREEDY ··###
+		print('··· Calculando pesos por medio de Relief ···')
+		ini_time = time()
+		w_g = relief(x_train, y_train)
+		fin_time = time()
+		dif_time_g = fin_time - ini_time
+		mean_test_greedy_t	+= dif_time_g
 
-for train_index, test_index in skf.split(_data, _class):
-	x_train, x_test = _data[train_index], _data[test_index]
-	y_train, y_test = _class[train_index], _class[test_index]
+		###·· LOCAL SEARCH ··###
+		print('··· Calculando pesos por medio de Local Search ···')
+		ini_time = time()
+		w_ls = local_search(x_train, y_train)
+		fin_time = time()
+		dif_time_ls = fin_time - ini_time
+		mean_test_LS_t += dif_time_ls
 
-	print('Muestra: ' + str(it))
-	it += 1
+		###·· TEST GREEDY ··###
+		print('··· Evaluando Relief ···')
+		f, hr, rr = k_NN(x_train, y_train, w_g, x_test, y_test, False)
+		mean_test_greedy_f = mean_test_greedy_f + f
+		mean_test_greedy_hr = mean_test_greedy_hr + hr
+		mean_test_greedy_rr = mean_test_greedy_rr + rr
 
-	w_g = relief(x_train, y_train)
-	f, hr, rr = k_NN(x_train, y_train, w_g, x_test, y_test, False)
-	mean_test_greedy_f = mean_test_greedy_f + f
-	mean_test_greedy_hr = mean_test_greedy_hr + hr
-	mean_test_greedy_rr = mean_test_greedy_rr + rr
-	print('\nGreedy:')
-	print('F:', f, '   Hit-rate:', hr, '   Reduction-rate:', rr,'\n\n')
+		table_greedy.add_row([partition, hr, rr, f*100, dif_time_g])
 
-	w_ls = local_search(x_train, y_train)
-	f, hr, rr = k_NN(x_train, y_train, w_ls, x_test, y_test, False)
-	mean_test_LS_f = mean_test_LS_f + f
-	mean_test_LS_hr = mean_test_LS_hr + hr
-	mean_test_LS_rr = mean_test_LS_rr + rr
-	print('\nLocal Search:')
-	print('F:', f, '   Hit-rate:', hr, '   Reduction-rate:', rr,'\n\n')
+		###·· TEST LOCAL SEARCH ··###
+		print('··· Evaluando Local Search ···')
+		f, hr, rr = k_NN(x_train, y_train, w_ls, x_test, y_test, False)
+		mean_test_LS_f = mean_test_LS_f + f
+		mean_test_LS_hr = mean_test_LS_hr + hr
+		mean_test_LS_rr = mean_test_LS_rr + rr
 
-print('\n\nTEST_GREEDY')
-print('F:', 100*mean_test_greedy_f/5, '%')
-print('Hit-rate:', 100*mean_test_greedy_hr/5, '%')
-print('Reduction-rate:', 100*mean_test_greedy_rr/5, '%')
+		table_ls.add_row([partition, hr, rr, f*100, dif_time_ls])
 
-print('\n\nTEST_LS')
-print('F:', 100*mean_test_LS_f/5, '%')
-print('Hit-rate:', 100*mean_test_LS_hr/5, '%')
-print('Reduction-rate:', 100*mean_test_LS_rr/5, '%')
+		###·· TEST 1-NN ··###
+		print('··· Evaluando 1-NN ···')
+		f, hr, rr = _1_NN(x_train, y_train, x_test, y_test)
+		mean_test_1nn_f = mean_test_1nn_f + f
+		mean_test_1nn_hr = mean_test_1nn_hr + hr
+		mean_test_1nn_rr = mean_test_1nn_rr + rr
+
+		table_1nn.add_row([partition, hr, rr, f*100, 0])
+
+	table_1nn.add_row(['Media', 100*mean_test_1nn_hr/5, 100*mean_test_1nn_rr/5, 100*mean_test_1nn_f/5, 0])
+	table_greedy.add_row(['Media', 100*mean_test_greedy_hr/5, 100*mean_test_greedy_rr/5, 100*mean_test_greedy_f/5, mean_test_greedy_t/5])
+	table_ls.add_row(['Media', 100*mean_test_LS_hr/5, 100*mean_test_LS_rr/5, 100*mean_test_LS_f/5, mean_test_LS_t/5])
+
+	mean_table.add_row(['1-NN', 100*mean_test_1nn_hr/5, 100*mean_test_1nn_rr/5, 100*mean_test_1nn_f/5])
+	mean_table.add_row(['RELIEF', 100*mean_test_greedy_hr/5, 100*mean_test_greedy_rr/5, 100*mean_test_greedy_f/5])
+	mean_table.add_row(['LOCAL SEARCH', 100*mean_test_LS_hr/5, 100*mean_test_LS_rr/5, 100*mean_test_LS_f/5])
+
+	print(table_1nn.get_string(title='Resultados 1-NN - '+archivo))
+	print(table_greedy.get_string(title='Resultados RELIEF - '+archivo))
+	print(table_ls.get_string(title='Resultados LOCAL SEARCH - '+archivo))
+	print(mean_table.get_string(title='Media de resultados - '+archivo))
