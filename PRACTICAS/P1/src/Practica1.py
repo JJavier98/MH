@@ -13,6 +13,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import MinMaxScaler
 from time import time
 from prettytable import PrettyTable
+import matplotlib.pyplot as plt
 
 np.random.seed(1)
 
@@ -154,6 +155,14 @@ def relief(data, tags):
 	w[ w < 0.0] = 0.0
 	w /= w_max
 
+	
+	# Comentado para no retrasar la ejecucion del algoritmo
+	"""
+	for i in range(len(w)):
+		plt.bar(i,w[i])
+	plt.show()
+	"""
+
 	return w
 
 ###################
@@ -183,6 +192,12 @@ def local_search(data, tags):
 			else:
 				w[i] = prev
 				n_neighbors += 1
+
+	"""
+	for i in range(len(w)):
+		plt.bar(i,w[i])
+	plt.show()
+	"""
 
 	return w
 

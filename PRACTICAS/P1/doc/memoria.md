@@ -12,7 +12,7 @@ subtitle: "Técnicas de Búsqueda Local y Algoritmos Greedy para el Problema del
 lang: "es"
 titlepage: true
 titlepage-rule-height: 1
-logo: "../img/3.png"
+logo: "../img/logoUGR/3.png"
 logo-width: 300
 toc: TRUE
 toc-own-page: TRUE
@@ -43,7 +43,7 @@ El método empleado para aprender a clasificar será decisivo en la calidad, cos
 
 # Elementos comunes a todos algoritmos implementados  
 
-### Módulos importados y para qué han sido utilizados:  
+## Módulos importados y para qué han sido utilizados:  
 * **arff** (de _scipy.io_): este módulo nos permite leer los archivos con extensión _.arff_ de datos de población.
 * **numpy**: nos permite trabajar de forma cómoda con vectores y matrices a parte de proporcionar una serie de funciones matemáticas como _valor absoluto_, _media_, _distancia euclídea_, _generación de números aleatorios_, _distribución normal y uniforme_, _truncamiento de valores a un determinado rango_, y un largo etcétera.
 * **pandas**: nos permite trabajar de forma cómoda con conjuntos de datos y crear tablas entre otras cosas. En la práctica lo usamos para transformar los datos leídos del fichero arff a una matriz.
@@ -52,8 +52,9 @@ El método empleado para aprender a clasificar será decisivo en la calidad, cos
 * **MinMaxScaler** (de _sklearn.preprocessing_): nos permite escalar los valores de las carácterísticas de los elementos al rango [1,0]
 * **time** (de _time_): nos permite calcular el tiempo de ejecución de los ditintos algoritmos.
 * **PrettyTable** (de _prettytable_): para imrimir los resultados obtenidos por los algoritmos de forma ordenada en tablas.
+* **matplotlib.pyplot**: nos permite hacer gráficas
 
-### Funciones auxiliares:  
+## Funciones auxiliares:  
 * **byte2string(x)**: cuando leemos el conjunto de datos _x_ transformamos todas las etiquetas (clases) en strings para poder trabajar con ellas de manera uniforme. Esto permite que si leemos un conjunto de datos y sus etiquetas, en un principio, son númericas trabajaremos con él de igual forma que lo haríamos con un conjunto de etiquetas alfabéticas.
 * **read_arff(name_of_file)**: lee el contenido de un archivo _.arff_ situado en el directorio _../data/_ relativo al directorio donde se encuentra nuestro script. Transforma los datos a un formato más amigable.  
 Devuelve dos objetos: datos y metadatos.  
@@ -77,11 +78,11 @@ def get_only_data(data):
     return ( data - last_column(data) )
 ~~~
 
-### Elemento solución  
+## Elemento solución  
 Como solución de los algoritmos obtenemos un **vector de pesos** en el intervalo [0,1] de tamaño igual al número de características de los elementos. Este vector pondera la importancia de las características a la hora de clasificar los elementos. Un peso de 1 indica que esa carácterística es clave para saber la clase a la que pertenece el elemento, y un peso de 0 indica que es totalmente irrelevante.  
 El vector solución se denotará como ___w___.
 
-### Clasificador k-NN  
+## Clasificador k-NN  
 Consiste en almacenar una serie de _n_ de elementos (que en nuestro caso será la muestra) junto con sus etiquetas de manera que, al incorporar un nuevo elemento _e_ a clasificar, se calculará la distancia entre este nuevo elemento y los _n_ almacenados, escogiendo los _k_ elementos más cercanos y seleccionando como nueva clase para _e_ la clase común a la mayoría de los _k_ elementos. Por esto es habitual encontrar k-NNs con k impar.  
 Es importante haber normalizado los datos, tanto _n_ como _e_, para no priorizar unos sobre otros.  
 
@@ -297,3 +298,29 @@ def _1_NN(data_training, tags_training, data_test, tags_test):
 ~~~
 
 # Procedimiento considerado para desarrollar la práctica
+La escritura de código se ha llevado a cabo desde cero. El orden seguido durante la creación de la práctica ha sido el marcado por el PDF del seminario y no el del guión de prácticas. Si bien es cierto que para comprender el funcionamiento de los algoritmos he consultado ambos PDFs a la vez que diversos vídeos en YouTube y algunos posts en StackOverflow. Ha sido en estas consultas en internet donde he encontrado algunos de los módulos que uso como son KDTree, StratifiedKFold o MinMaxScaler. 
+Para comenzar debemos cerciorarnos de ser capaces de leer los documentos .arff y transformar los datos, si es necesario, a un formato más amigable. Una vez seamos capaces de leer y manipular los datos podemos comenzar con la implementación de los algoritmos.  
+Recomiento empezar a programar los algoritmos Greedy o k-NN ya que son independientes de los demás y tienen una estructura clara. Una vez realizados podemos seguir con 1-NN que es tan solo una reducción del k-NN y con Búsqueda Local que requiere del uso de k-NN.  
+
+# Análisis de resultados
+Todos los resultados obtenidos se han tomado con una semilla fija a 1:  
+**np.random.seed(1)**  
+
+Respecto a la diferencia de resultados entre algoritmos, la razón es clara:  
+**1-NN** es claramente el peor ya que no optimiza en ningún sentido la clasificación de los elemntos. No cuanta con un vector de pesos que pondere la importancia de las características a la hora de clasificar.  
+**Greedy**, al contrario, si genera este vector de pesos, _w_, pero lo hace de una manera muy general aplicando cambios a todas sus componentes a la vez y por lo tanto no siendo muy preciso en qué características son las verdaderamente decisivas.  
+**Local Search** sí aplica una variación específica y concreta a cada elemento de _w_ permitiendo destacar aquellas variables distintivas y pormenorizar las irrelevantes.  
+
+Como vemos la mayor diferencia entre algoritmos es, sobretodo, la capacidad de desechar carácterísticas inecesarias durante la clasificación. Como en nuestra función objetivo valoramos por igual la capacidad de acertar la etiqueta como la de reducir las características las diferencias se hacen más notables.  
+
+## Tablas comparativas:  
+
+![Greedy](../img/resultados/greedy.png ){width=650}  
+
+![LocalSearch](../img/resultados/ls.png){width=650}  
+
+![1-NN](../img/resultados/1nn.png){width=650}  
+
+![Medias](../img/resultados/medias.png){width=650}  
+
+## Gráficos comparativos  
