@@ -53,6 +53,7 @@ El método empleado para aprender a clasificar será decisivo en la calidad, cos
 * **time** (de _time_): nos permite calcular el tiempo de ejecución de los ditintos algoritmos.
 * **PrettyTable** (de _prettytable_): para imrimir los resultados obtenidos por los algoritmos de forma ordenada en tablas.
 * **matplotlib.pyplot**: nos permite hacer gráficas
+* **sys**: nos permite leer parámetros de entrada
 
 ## Funciones auxiliares:  
 * **byte2string(x)**: cuando leemos el conjunto de datos _x_ transformamos todas las etiquetas (clases) en strings para poder trabajar con ellas de manera uniforme. Esto permite que si leemos un conjunto de datos y sus etiquetas, en un principio, son númericas trabajaremos con él de igual forma que lo haríamos con un conjunto de etiquetas alfabéticas.
@@ -305,6 +306,7 @@ Recomiento empezar a programar los algoritmos Greedy o k-NN ya que son independi
 # Análisis de resultados
 Todos los resultados obtenidos se han tomado con una semilla fija a 1:  
 **np.random.seed(1)**  
+Pero podemos pasar una semilla como parámetro al programa.  
 
 Respecto a la diferencia de resultados entre algoritmos, la razón es clara:  
 **1-NN** es claramente el peor ya que no optimiza en ningún sentido la clasificación de los elemntos. No cuanta con un vector de pesos que pondere la importancia de las características a la hora de clasificar.  
@@ -324,3 +326,56 @@ Como vemos la mayor diferencia entre algoritmos es, sobretodo, la capacidad de d
 ![Medias](../img/resultados/medias.png){width=650}  
 
 ## Gráficos comparativos  
+Cada gráfico corresponde a una de las 5 pariciones diferentes.
+Representan los valores que toma el vector de pesos _w_ para cada característica.
+Podemos apreciar como en el algoritmo Greedy no hay tanta diferencia de ponderaciones como la hay en Locar Search.  
+
+### Gráficos Greedy  
+#### Colposcopy
+
+![Greedy](../img/resultados/g_colposcopy_1.png ){width=300}
+![Greedy](../img/resultados/g_colposcopy_2.png ){width=300}
+![Greedy](../img/resultados/g_colposcopy_3.png ){width=300}
+![Greedy](../img/resultados/g_colposcopy_4.png ){width=300}
+![Greedy](../img/resultados/g_colposcopy_5.png ){width=300}
+
+#### Ionosphere  
+
+![Greedy](../img/resultados/g_ionosphere_1.png ){width=300}
+![Greedy](../img/resultados/g_ionosphere_2.png ){width=300}
+![Greedy](../img/resultados/g_ionosphere_3.png ){width=300}
+![Greedy](../img/resultados/g_ionosphere_4.png ){width=300}
+![Greedy](../img/resultados/g_ionosphere_5.png ){width=300}
+
+#### Texture  
+
+![Greedy](../img/resultados/g_texture_1.png ){width=300}
+![Greedy](../img/resultados/g_texture_2.png ){width=300}
+![Greedy](../img/resultados/g_texture_3.png ){width=300}
+![Greedy](../img/resultados/g_texture_4.png ){width=300}
+![Greedy](../img/resultados/g_texture_5.png ){width=300}
+
+### Gráficos Local Search  
+#### Colposcopy
+
+![Greedy](../img/resultados/ls_colposcopy_1.png ){width=300}
+![Greedy](../img/resultados/ls_colposcopy_2.png ){width=300}
+![Greedy](../img/resultados/ls_colposcopy_3.png ){width=300}
+![Greedy](../img/resultados/ls_colposcopy_4.png ){width=300}
+![Greedy](../img/resultados/ls_colposcopy_5.png ){width=300}
+
+#### Ionosphere  
+
+![Greedy](../img/resultados/ls_ionosphere_1.png ){width=300}
+![Greedy](../img/resultados/ls_ionosphere_2.png ){width=300}
+![Greedy](../img/resultados/ls_ionosphere_3.png ){width=300}
+![Greedy](../img/resultados/ls_ionosphere_4.png ){width=300}
+![Greedy](../img/resultados/ls_ionosphere_5.png ){width=300}
+
+#### Texture  
+
+![Greedy](../img/resultados/ls_texture_1.png ){width=300}
+![Greedy](../img/resultados/ls_texture_2.png ){width=300}
+![Greedy](../img/resultados/ls_texture_3.png ){width=300}
+![Greedy](../img/resultados/ls_texture_4.png ){width=300}
+![Greedy](../img/resultados/ls_texture_5.png ){width=300}

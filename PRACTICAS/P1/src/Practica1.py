@@ -12,10 +12,9 @@ from sklearn.neighbors import KDTree
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import MinMaxScaler
 from time import time
+import sys
 from prettytable import PrettyTable
 import matplotlib.pyplot as plt
-
-np.random.seed(1)
 
 ###################################################
 ### Funciones para la codificación de etiquetas ###
@@ -204,6 +203,11 @@ def local_search(data, tags):
 ###########################################################################################
 ###··································### MAIN ###·······································###
 ###########################################################################################
+
+if len(sys.argv) == 2:
+	np.random.seed(int(sys.argv[1]))
+else:
+	np.random.seed(1)
 
 archivos = ['colposcopy', 'texture', 'ionosphere']
 for archivo in archivos:
