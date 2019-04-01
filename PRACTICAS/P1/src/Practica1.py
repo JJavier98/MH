@@ -8,11 +8,10 @@ Estudiante: JJavier Alonso Ramos
 from scipy.io import arff
 import numpy as np
 import pandas as pd
-import sys # Leer parámetros de entrada
 from sklearn.neighbors import KDTree
 from sklearn.model_selection import StratifiedKFold
-from time import time
 from sklearn.preprocessing import MinMaxScaler
+from time import time
 from prettytable import PrettyTable
 
 np.random.seed(1)
@@ -21,7 +20,6 @@ np.random.seed(1)
 ### Funciones para la codificación de etiquetas ###
 ###################################################
 byte2string = lambda x: x.decode('utf-8')
-string2int = lambda x: int(x)
 
 #######################################
 ### Función para leer archivos arff ###
@@ -142,7 +140,7 @@ def relief(data, tags):
 			if not ally_found and tags[i] == tags[ nearest_ind[i,j] ]:
 				ally_found = True
 				closest_friend_id = nearest_ind[i,j]
-			if not enemy_found and tags[i] != tags[ nearest_ind[i,j] ]:
+			elif not enemy_found and tags[i] != tags[ nearest_ind[i,j] ]:
 				enemy_found = True
 				closest_enemy_id = nearest_ind[i,j]
 			if ally_found and enemy_found:
@@ -169,17 +167,18 @@ def local_search(data, tags):
 	n_neighbors = 0
 	variance = 0.3
 	mean = 0.0
+	class_prev, h, r = k_NN(data, tags, w)
 
 	while n_eval < max_eval and n_neighbors < max_neighbors:
 		for i in range(w.shape[0]):
 			n_eval += 1
 			prev = w[i]
-			class_prev = k_NN(data, tags, w)
 			w[i] = np.clip(w[i] + np.random.normal(mean, variance), 0, 1)
-			class_mod = k_NN(data, tags, w)
+			class_mod, h, r = k_NN(data, tags, w)
 
 			if(class_mod > class_prev):
 				n_neighbors = 0
+				class_prev = class_mod
 				break
 			else:
 				w[i] = prev
@@ -250,7 +249,7 @@ for archivo in archivos:
 		mean_test_greedy_hr = mean_test_greedy_hr + hr
 		mean_test_greedy_rr = mean_test_greedy_rr + rr
 
-		table_greedy.add_row([partition, hr, rr, f*100, dif_time_g])
+		table_greedy.add_row([partition, 100*hr, 100*rr, f*100, dif_time_g])
 
 		###·· TEST LOCAL SEARCH ··###
 		print('··· Evaluando Local Search ···')
@@ -259,7 +258,7 @@ for archivo in archivos:
 		mean_test_LS_hr = mean_test_LS_hr + hr
 		mean_test_LS_rr = mean_test_LS_rr + rr
 
-		table_ls.add_row([partition, hr, rr, f*100, dif_time_ls])
+		table_ls.add_row([partition, 100*hr, 100*rr, f*100, dif_time_ls])
 
 		###·· TEST 1-NN ··###
 		print('··· Evaluando 1-NN ···')
@@ -268,7 +267,7 @@ for archivo in archivos:
 		mean_test_1nn_hr = mean_test_1nn_hr + hr
 		mean_test_1nn_rr = mean_test_1nn_rr + rr
 
-		table_1nn.add_row([partition, hr, rr, f*100, 0])
+		table_1nn.add_row([partition, 100*hr, 100*rr, f*100, 0])
 
 	table_1nn.add_row(['Media', 100*mean_test_1nn_hr/5, 100*mean_test_1nn_rr/5, 100*mean_test_1nn_f/5, 0])
 	table_greedy.add_row(['Media', 100*mean_test_greedy_hr/5, 100*mean_test_greedy_rr/5, 100*mean_test_greedy_f/5, mean_test_greedy_t/5])
