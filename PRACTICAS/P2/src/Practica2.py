@@ -200,11 +200,110 @@ def local_search(data, tags):
 
 	return w
 
+#############
+### BLX-a ###
+#############
+def BLX_a(w1, w2, alpha = 0.3):
+	hijo1 = hijo2 = np.zeros_like(w1)
+	for i in range(0,w1.shape[0]):
+		Cmax = max(w1[i], w2[i])
+		Cmin = min(w1[i], w2[i])
+		I = Cmax - Cmin
+
+		hijo1[i] = np.random.uniform(Cmin - I*alpha, Cmax + I*alpha)
+		hijo2[i] = np.random.uniform(Cmin - I*alpha, Cmax + I*alpha)
+
+	return hijo1, hijo2
+
 ###############
 ### AGG-BLX ###
 ###############
-def agg_blx():
-	
+def agg_blx(data, tags, num_crom = 30, Pc = 0.7, Pm = 0.001):
+	padres = np.random.uniform( 0.0, 1.0, (num_crom, data.shape[1]) )
+	num_cruces = Pc*num_crom//2
+	num_muta = num_crom*data.shape[1]*Pm # cromosomas * genes * Prob Mutacion
+	total_genes = num_crom*data.shape[1]
+	hijos = np.zeros_like(data.shape[1])
+	cromosoma_mejor_padre = np.zeros_like(data.shape[1])
+
+	iteraciones = 0
+	while iteraciones < 15000:
+		indice_mejor_padre = 0
+		f_mejor_padre = 0
+		f_peor_hijo = 9999
+		indice_peor_hijo = 0
+
+		for i in range(0,num_crom):
+			f = k_NN(data, tags, padres[i])
+			if f > f_mejor_padre:
+				f_mejor_padre = f
+				indice_mejor_padre = i
+				cromosoma_mejor_padre = padres[i]
+
+		padre_id1 = False
+		padre_id2 = False
+		mantiene_padre = False
+
+		### TORNEO BINARIO ###
+		for i in range(num_crom):
+			id1 = np.random.randint(num_crom)
+			id2 = np.random.randint(num_crom)
+
+			if id1 == indice_mejor_padre:
+				padre_id1 = True
+			elif id2 == indice_mejor_padre:
+				padre_id2 = True
+
+			f1 = k_NN(data, tags, padres[id1])
+			f2 = k_NN(data, tags, padres[id2])
+
+			if f1 > f2:
+				hijos[i] = padres[i]
+
+				if f2 < f_peor_hijo:
+					f_peor_hijo = f2
+					indice_peor_hijo = id2
+
+				if padre_id1:
+					mantiene_padre = True
+			else:
+				hijos[i] = padres[i+1]
+
+				if f1 < f_peor_hijo:
+					f_peor_hijo = f1
+					indice_peor_hijo = id1
+
+				if padre_id2:
+					mantiene_padre = True
+
+		### REEMPLAZAMIENTO ###
+		if !mantiene_padre:
+			hijos[indice_peor_hijo] = cromosoma_mejor_padre
+
+		### CRUZAMIENTO ###
+		for i in range(0,num_cruces,2):
+			hijos[i], hijos[i+1] = BLX_a(hijos[i], hijos[i+1])
+
+		### MUTACION ###
+		for i in range(num_muta):
+			filcol = np.random.randint(total_genes)
+			fil = filcol//data.shape[1]
+			col = filcol%data.shape[1]
+			np.clip(hijos[fil,col] + np.random.normal(0.0, 0.3), 0, 1)
+
+		padres = hijos
+
+		iteraciones += 1
+
+	indice_mejor_padre = 0
+	f_mejor_padre = 0
+	for i in range(0,num_crom):
+		f = k_NN(data, tags, padres[i])
+		if f > f_mejor_padre:
+			f_mejor_padre = f
+			indice_mejor_padre = i
+
+	return padres[indice_mejor_padre]
 
 ###########################################################################################
 ###··································### MAIN ###·······································###
